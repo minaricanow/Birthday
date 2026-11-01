@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Happy Birthday</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap">
+<style>
+/* One big pixel-art screen. Purple "borahae" palette: lavender, violet and deep indigo, with seven little hearts. Day or night is switched by the button under the screen. */
+:root{--page:#1b1033;--dots:#2b1a55;--ink:#1b0f3d;--frame1:#a98af0;--frame2:#6a3fb8;--hi:#dccbff;--lav:#e9d8ff;--btn1:#bfa3f7;--btn2:#8458dc;--btnlo:#55309f;--px:'Press Start 2P','Courier New',ui-monospace,monospace;--vt:'VT323','Courier New',ui-monospace,monospace;color-scheme:dark}
+body.night{--page:#0d0620;--dots:#1a0e3d}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(var(--dots) 1.5px,transparent 1.6px) 0 0/20px 20px,var(--page);color:var(--lav);font:22px/1.2 var(--vt);padding-block:20px 28px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));transition:background-color .4s}
+main{max-width:1240px;margin:0 auto}
+h1{font:400 clamp(12px,2.4vw,20px)/1.5 var(--px);color:#fff;text-align:center;margin:0 0 8px;text-shadow:3px 3px 0 var(--frame2),5px 5px 0 var(--ink)}
+.hearts{display:flex;gap:10px;justify-content:center;margin:0 0 16px}
+.hearts svg{display:block;width:clamp(15px,2vw,24px);height:auto}
+.frame{display:block;width:fit-content;margin:0 auto;background:linear-gradient(135deg,var(--frame1),var(--frame2) 62%,#7c52d4);padding:10px;border:4px solid var(--ink);box-shadow:inset 0 0 0 3px var(--hi),6px 6px 0 var(--ink)}
+.stage{position:relative;line-height:0;border:4px solid var(--ink);background:var(--ink)}
+canvas#cv{display:block;image-rendering:pixelated;cursor:pointer;touch-action:manipulation;outline:none}
+.frame:has(canvas:focus-visible){outline:3px solid var(--lav);outline-offset:6px}
+.bubble{position:absolute;z-index:2;transform:translate(-50%,-100%);width:max-content;max-width:64%;background:#f6efff;color:var(--ink);border:3px solid var(--frame2);padding:4px 10px 5px;font:400 22px/1.15 var(--vt);text-align:center;white-space:normal;pointer-events:none}
+.bubble::after{content:"";position:absolute;left:50%;bottom:-9px;width:7px;height:7px;margin-left:-3px;background:var(--frame2)}
+.bar{display:flex;flex-wrap:wrap;gap:14px;justify-content:center;margin:26px 0 6px}
+.btn{font:400 clamp(10px,1.05vw,14px)/1.4 var(--px);color:#fff;text-shadow:2px 2px 0 var(--ink);background:linear-gradient(var(--btn1),var(--btn2));border:3px solid var(--ink);box-shadow:inset 0 3px 0 rgba(255,255,255,.35),0 5px 0 var(--btnlo),0 5px 0 3px var(--ink);padding:10px 14px 9px;cursor:pointer;touch-action:manipulation;letter-spacing:.02em}
+.btn:active{transform:translateY(4px);box-shadow:inset 0 3px 0 rgba(255,255,255,.35),0 1px 0 var(--btnlo),0 1px 0 3px var(--ink)}
+.btn.heart{background:linear-gradient(#f8f2ff,#d9c6fb);padding:8px 16px 7px}
+.btn.heart svg{display:block;width:clamp(22px,2.2vw,30px);height:auto}
+.btn:focus-visible{outline:3px solid #fff;outline-offset:3px}
+@media (max-width:520px){.btn{font-size:9px;padding:9px 10px 8px}}
+</style>
+</head>
+<body>
+<main>
+  <h1 id="ttl"></h1>
+  <div class="hearts" id="hearts" aria-hidden="true"></div>
+  <div class="frame" id="frame">
+    <div class="stage" id="stage"><canvas id="cv" tabindex="0" role="img" aria-label="A birthday cake on a table in a sunflower field next to a small house, with a girl you can walk around. Arrow keys or WASD to walk, Z to say hi, X to blow the candles, N for day or night."></canvas><div class="bubble" id="bub" hidden></div></div>
+  </div>
+  <div class="bar">
+    <button class="btn heart" id="btnA" type="button" aria-label="Say hi"></button>
+    <button class="btn" id="btnB" type="button"></button>
+    <button class="btn" id="btnBloom" type="button">BLOOM</button>
+    <button class="btn" id="btnMode" type="button" aria-pressed="false"></button>
+  </div>
+</main>
+
+<script>
+const TO = "";   /* recipient's name, shows in the title and the birthday line */
+/* Each press of A (or Z, or tapping the girl) she says the next line, then starts over. Edit the lines here. VT323 also shows Vietnamese. */
+const MESSAGES = [
+  'Happy Birthday!',
+  'Make a wish!',
+  'Another year, another adventure.',
+  'Hope your day is as bright as a sunflower.',
+  'Cake time! Press B to blow the candles.'
+];
+const START_NIGHT = false;   /* true = the page opens at night (the button still switches) */
+const TEXT = { day: 'NIGHT MODE', night: 'DAY MODE', blow: 'BLOW CANDLES', light: 'LIGHT CANDLES', done: 'Happy Birthday' + (TO ? ', ' + TO : '') + '!', again: 'Make another wish!', door: 'Happy Birthday' + (TO ? ', ' + TO : '') + '!' };   /* button and speech texts */
+const HEART = ['.##...##.', '####.####', '#########', '#########', '.#######.', '..#####..', '...###...', '....#....'];   /* pixel heart, 9x8 */
+document.getElementById('hearts').innerHTML = ['#f1e6ff', '#dccbff', '#c6aaf8', '#af8cf0', '#9970e6', '#8456d8', '#6d3fc4'].map(c => '<svg viewBox="0 0 9 8" fill="' + c + '" shape-rendering="crispEdges">' + HEART.map((row, y) => [...row].map((k, x) => k === '#' ? '<rect x="' + x + '" y="' + y + '" width="1" height="1"/>' : '').join('')).join('') + '<rect x="1" y="1" width="1" height="1" fill="#fff" opacity=".85"/></svg>').join('');
+const heartSVG = c => '<svg viewBox="0 0 9 8" fill="' + c + '" shape-rendering="crispEdges" aria-hidden="true">' + HEART.map((row, y) => [...row].map((k, x) => k === '#' ? '<rect x="' + x + '" y="' + y + '" width="1" height="1"/>' : '').join('')).join('') + '<rect x="1" y="1" width="1" height="1" fill="#fff" opacity=".85"/></svg>';
+document.getElementById('btnA').innerHTML = heartSVG('#8456d8');   /* the purple heart button = say hi */
+document.getElementById('ttl').textContent = 'HAPPY BIRTHDAY' + (TO ? ', ' + TO.toUpperCase() : '') + '!';
+
+const SOUNDS = __SOUNDS__;   /* 7 clips from the sounds/ folder (embedded by tools/pack.py); a missing clip = that sunflower stays silent */
+const SOUND_LABELS = ['1/7', '2/7', '3/7', '4/7', '5/7', '6/7', '7/7'];   /* what the girl says when a sound sunflower is tapped */
+const SP = __SPRITES__, K = 2;   /* sprites are drawn double size (K=2): 1 world unit = K image pixels */
+Object.values(SP).forEach(s => { s.dw = s.w / K; s.dh = s.h / K; });
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const IM = {}, names = Object.keys(SP); let loaded = 0;
+names.forEach(k => { const i = new Image(); i.onload = () => { if (++loaded === names.length) start(); }; i.src = SP[k].src; IM[k] = i; });
+
+const W = 112, H = 64, HOR = 36, HX = 6, HY = 14, HW = 36, HH = 30, TX = 56, TY = 42;   /* house box, table centre x / top y */
+const cv = document.getElementById('cv'), cx = cv.getContext('2d'), bub = document.getElementById('bub');
+cv.width = W * K; cv.height = H * K; cx.setTransform(K, 0, 0, K, 0, 0); cx.imageSmoothingEnabled = false;
+let u = 6;   /* screen px per world unit */
+const hash = n => { n = Math.sin(n * 127.1 + 3.3) * 43758.5453; return n - Math.floor(n); };
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+function spr(k, f, x, y, flip) {
+  const s = SP[k], X = Math.round(x * K) / K, Y = Math.round(y * K) / K;
+  if (flip) { cx.save(); cx.translate(X + s.dw, Y); cx.scale(-1, 1); cx.drawImage(IM[k], f * s.w, 0, s.w, s.h, 0, 0, s.dw, s.dh); cx.restore(); }
+  else cx.drawImage(IM[k], f * s.w, 0, s.w, s.h, X, Y, s.dw, s.dh);
+}
+const HC = ['#f1e6ff', '#dccbff', '#c6aaf8', '#af8cf0', '#9970e6', '#8456d8', '#6d3fc4'].map(c => {   /* small purple heart above each sound sunflower */
+  const k = document.createElement('canvas'); k.width = 9; k.height = 8; const g = k.getContext('2d'); g.fillStyle = c;
+  HEART.forEach((row, y) => [...row].forEach((q, x) => { if (q === '#') g.fillRect(x, y, 1, 1); })); g.fillStyle = 'rgba(255,255,255,.85)'; g.fillRect(1, 1, 1, 1); return k; });
+let actx = null, cur = null, want = -1, puff = 0; const BUF = [];
+function ensureAudio() {   /* must run inside a tap / key press (browser rule) */
+  if (!SOUNDS.some(Boolean)) return;
+  try {
+    if (!actx) {
+      const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return; actx = new AC();
+      SOUNDS.forEach((src, i) => {
+        if (!src) return;
+        const bin = atob(src.split(',')[1]), bytes = new Uint8Array(bin.length); for (let j = 0; j < bin.length; j++) bytes[j] = bin.charCodeAt(j);
+        const pr = actx.decodeAudioData(bytes.buffer, b => { BUF[i] = b; if (want === i) playSnd(i); }, () => { }); if (pr && pr.catch) pr.catch(() => { });
+      });
+    }
+    if (actx.state === 'suspended') actx.resume();
+  } catch (e) { }
+}
+function playSnd(i) {
+  if (!SOUNDS[i] || !actx) return;
+  if (!BUF[i]) { want = i; return; }   /* still decoding: it starts as soon as it is ready */
+  want = -1; if (cur) { try { cur.src.stop(); } catch (e) { } }
+  const src = actx.createBufferSource(); src.buffer = BUF[i]; src.connect(actx.destination);
+  try { src.start(); } catch (e) { return; }
+  cur = { i, src, end: R + BUF[i].duration };
+  const f = FL.find(q => q.snd === i); if (f) f.bloom = Math.max(f.bloom, R + BUF[i].duration);
+  dirty = true;
+}
+addEventListener('pointerdown', ensureAudio, true); addEventListener('keydown', ensureAudio, true);
+function say(t, d = 2.4) { bub.textContent = t; bub.hidden = false; bubUntil = R + d; }
+
+/* ---- world (sunflowers around the house and the cake table are cleared) ---- */
+const FL = [];
+const addF = (big, x, y) => FL.push({ big, x, y, ph: FL.length * .37, bloom: 0, id: FL.length + 1 });
+[80, 90, 100, 109].forEach(x => addF(false, x, 42));
+[12, 80, 93, 106].forEach(x => addF(true, x, 53));
+[6, 86, 101].forEach(x => addF(true, x, 62));
+FL.filter(f => f.big).sort((a, b) => a.x - b.x).forEach((f, i) => f.snd = i);   /* the 7 big sunflowers carry the 7 sounds, left to right */
+const ch = { x: 23, y: 49, tx: null, ty: null, cb: null, face: 1, moving: false, walkT: 0 };
+const door = { until: 0 }, cake = { lit: true, t1: -9 };
+const parts = []; let star = null, R = 0, T = 0, bubUntil = 0, dirty = true, night = START_NIGHT;
+const keys = new Set();
+
+/* ---- background layers (day / night), drawn once at full resolution ---- */
+const bgs = {};
+function buildBG(isNight) {
+  const c = document.createElement('canvas'); c.width = W * K; c.height = H * K;
+  const g = c.getContext('2d'), p = (x, y, col, w = 1, h = 1) => { g.fillStyle = col; g.fillRect(x, y, w, h); };
+  const bands = isNight ? [[0, '#0a0620'], [8, '#130b38'], [16, '#1e1252'], [24, '#2d1a70'], [30, '#43268c']] : [[0, '#8f7bdc'], [8, '#a98fe8'], [16, '#c9b0f2'], [24, '#efd0ef'], [30, '#ffd3e3']];
+  for (let y = 0; y < (HOR + 2) * K; y++) {
+    const yy = y / K; let bi = 0; bands.forEach((b, i) => { if (yy >= b[0]) bi = i; });
+    for (let x = 0; x < W * K; x++) p(x, y, bi > 0 && y === bands[bi][0] * K && (x + y) % 2 ? bands[bi - 1][1] : bands[bi][1]);
+  }
+  const [hx, hy, ro, ri, ca, cb] = isNight ? [96, 12, 15, 10.5, '#1c1052', '#25186a'] : [96, 27, 12, 9, '#fbe3f4', '#fff0fa'];
+  for (let y = -ro * K; y <= ro * K; y++) for (let x = -ro * K; x <= ro * K; x++) { const r = Math.hypot((x + .5) / K, (y + .5) / K); if (r <= ro && (!isNight || r > ri)) p(hx * K + x, hy * K + y, r > ri ? ca : cb); }
+  for (let x = 0; x < W * K; x++) { const xx = x / K, top = Math.round((33 + 1.6 * Math.sin(xx * .13) + 1.2 * Math.sin(xx * .31 + 1)) * K); p(x, top, isNight ? '#150f3a' : '#a9b6dc', 1, (HOR + 2) * K - top); }
+  for (let y = (HOR + 1) * K; y < H * K; y++) for (let x = 0; x < W * K; x++) p(x, y, y % (4 * K) < 2 * K ? (isNight ? '#10281a' : '#52a24a') : (isNight ? '#0e2317' : '#4a963f'));
+  for (let i = 0; i < 110 * K * K; i++) p(Math.floor(hash(i) * W * K), (HOR + 2) * K + Math.floor(hash(i + 90) * (H - HOR - 2) * K), hash(i + 300) > .5 ? (isNight ? '#1c4c2b' : '#6dc060') : (isNight ? '#0a1d12' : '#3b7d35'));
+  for (let y = 44 * K; y < H * K; y++) { const half = (3 + Math.floor((y / K - 44) / 3)) * K; for (let x = 23 * K - half; x <= 23 * K + half; x++) if ((x + y) % 3) p(x, y, isNight ? '#3a2e24' : '#a98558'); }
+  return c;
+}
+const modeBtn = document.getElementById('btnMode'), blowBtn = document.getElementById('btnB');
+function labels() { modeBtn.textContent = night ? TEXT.night : TEXT.day; blowBtn.textContent = cake.lit ? TEXT.blow : TEXT.light; }
+function setNight(v) { night = v; document.body.classList.toggle('night', v); modeBtn.setAttribute('aria-pressed', String(v)); labels(); dirty = true; }
+
+/* ---- input ---- */
+function goto(x, y, cb) { ch.tx = clamp(x, 8, 104); ch.ty = clamp(y, 46, 62); ch.cb = cb || null; ch.moving = true; dirty = true; }
+let msgI = 0;
+function greet() { const m = MESSAGES[msgI++ % MESSAGES.length]; say(m, 2.4 + m.length * .045); confetti(ch.x, ch.y - 24, 16); dirty = true; }
+function confetti(x, y, n) { const cs = ['#ffd84d', '#9b7bd9', '#d84a55', '#f6f0fd', '#6fcf7f']; for (let i = 0; i < n; i++) parts.push({ x, y, vx: (Math.random() - .5) * 38, vy: -10 - Math.random() * 22, l: 1.4, c: cs[i % 5] }); }
+function bloom(f) { f.bloom = R + 1.6; say('bloom!', 1.4);
+  for (let i = 0; i < 14; i++) parts.push({ x: f.x, y: f.y - (f.big ? 13 : 8), vx: (Math.random() - .5) * 22, vy: -8 - Math.random() * 12, l: 1.2, c: i % 2 ? '#ffe45c' : '#f5a524' }); dirty = true; }
+function bloomAll() { FL.forEach(f => { f.bloom = R + 1.6; for (let i = 0; i < 5; i++) parts.push({ x: f.x, y: f.y - (f.big ? 13 : 8), vx: (Math.random() - .5) * 22, vy: -8 - Math.random() * 12, l: 1.2, c: i % 2 ? '#ffe45c' : '#f5a524' }); }); say('bloom!', 1.4); dirty = true; }
+function knock() { door.until = R + 3.2; say(TEXT.door, 3); dirty = true; }
+function wish() { star = { x: 20 + Math.random() * 60, y: 2 + Math.random() * 12, t0: R }; say('make a wish', 2); dirty = true; }
+function candles() {   /* walk to the table, blow the candles out; press again to light them */
+  if (ch.cb && ch.cb.isCake) return;
+  if (!cake.lit) { cake.lit = true; labels(); say(TEXT.again, 2.2); confetti(TX, TY - 8, 10); dirty = true; return; }
+  const cb = () => { ch.face = 1; cake.lit = false; cake.t1 = R; labels(); say(TEXT.done, 3.4); confetti(TX, TY - 12, 36); dirty = true; };
+  cb.isCake = true; goto(TX - 20, 58, cb);
+}
+cv.addEventListener('pointerdown', e => {
+  cv.focus({ preventScroll: true });
+  const r = cv.getBoundingClientRect(), x = (e.clientX - r.left) / u, y = (e.clientY - r.top) / u;
+  const hit = [...FL].sort((a, b) => b.y - a.y).find(f => { const s = SP[f.big ? 'sunL' : 'sunS']; return x >= f.x - s.dw / 2 && x <= f.x + s.dw / 2 && y >= f.y - s.dh && y <= f.y + 1; });
+  if (Math.abs(x - ch.x) <= 7 && y >= ch.y - 25 && y <= ch.y + 1) greet();
+  else if (Math.abs(x - TX) <= 15 && y >= TY - 12 && y <= TY + 16) candles();
+  else if (hit) goto(hit.x, hit.y + 2, () => { bloom(hit); if (hit.snd !== undefined) playSnd(hit.snd); });
+  else if (x >= HX && x <= HX + HW && y >= HY && y <= 44) goto(23, 47, knock);
+  else if (y < HOR) wish();
+  else goto(x, y);
+});
+const DIR = { arrowleft: 'arrowleft', a: 'arrowleft', arrowright: 'arrowright', d: 'arrowright', arrowup: 'arrowup', w: 'arrowup', arrowdown: 'arrowdown', s: 'arrowdown' };
+cv.addEventListener('keydown', e => { const k = e.key.toLowerCase();
+  if (DIR[k]) { keys.add(k); ch.tx = null; e.preventDefault(); }
+  else if (k === 'z') greet(); else if (k === 'x') candles(); else if (k === 'n') setNight(!night); });
+cv.addEventListener('keyup', e => keys.delete(e.key.toLowerCase()));
+cv.addEventListener('blur', () => keys.clear());
+document.getElementById('btnA').addEventListener('click', greet);
+blowBtn.addEventListener('click', candles);
+document.getElementById('btnBloom').addEventListener('click', bloomAll);
+modeBtn.addEventListener('click', () => setNight(!night));
+
+/* ---- update ---- */
+function update(dt) {
+  let vx = 0, vy = 0;
+  if (keys.has('arrowleft') || keys.has('a')) vx -= 1; if (keys.has('arrowright') || keys.has('d')) vx += 1;
+  if (keys.has('arrowup') || keys.has('w')) vy -= 1; if (keys.has('arrowdown') || keys.has('s')) vy += 1;
+  if (vx || vy) { const n = Math.hypot(vx, vy); ch.x = clamp(ch.x + vx / n * 30 * dt, 8, 104); ch.y = clamp(ch.y + vy / n * 30 * dt, 46, 62); ch.moving = true; if (vx) ch.face = vx; }
+  else if (ch.tx !== null) {
+    const dx = ch.tx - ch.x, dy = ch.ty - ch.y, d = Math.hypot(dx, dy);
+    if (d < 1) { ch.x = ch.tx; ch.y = ch.ty; ch.tx = null; ch.moving = false; const cb = ch.cb; ch.cb = null; if (cb) cb(); }
+    else { const s = Math.min(d, 30 * dt); ch.x += dx / d * s; ch.y += dy / d * s; if (Math.abs(dx) > .5) ch.face = dx > 0 ? 1 : -1; }
+  } else ch.moving = false;
+  if (ch.moving) ch.walkT += dt;
+  for (const p of parts) { p.vy += 34 * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.l -= dt; }
+  for (let i = parts.length - 1; i >= 0; i--) if (parts[i].l <= 0) parts.splice(i, 1);
+  if (star && R - star.t0 > 1) star = null;
+  if (cur && R < cur.end) { const f = FL.find(q => q.snd === cur.i); if (f && (puff += dt) > .22) { puff = 0; parts.push({ x: f.x + (Math.random() - .5) * 6, y: f.y - 22, vx: (Math.random() - .5) * 10, vy: -16, l: .9, c: '#dccbff' }); } }
+}
+
+/* ---- render ---- */
+function px(x, y, c, w = 1, h = 1) { cx.fillStyle = c; cx.fillRect(Math.round(x * K) / K, Math.round(y * K) / K, w, h); }
+function render() {
+  const t = T;
+  cx.drawImage(bgs[night ? 'night' : 'day'], 0, 0, W, H);
+  if (night) {
+    for (let i = 0; i < 46; i++) {
+      const x = 2 + Math.floor(hash(i * 3) * 108), y = 1 + Math.floor(hash(i * 3 + 1) * 28);
+      if (Math.hypot(x - 96, y - 12) < 15) continue;
+      const bright = hash(i) > .6 && Math.floor(t * 1.4 + hash(i) * 9) % 3 === 0;
+      px(x, y, bright ? '#eef1ff' : (hash(i + 7) > .5 ? '#8f9bd0' : '#4d5a8f'));
+    }
+    spr('moon', 0, 86, 2);
+    for (let i = 0; i < 2; i++) spr('cloudN', i, ((t * (1.6 + i) + i * 60) % (W + 64)) - 32, 5 + i * 14);
+  } else {
+    for (let k = 0; k < 16; k++) { const a = k * Math.PI / 8 + t * .15; for (let r = 9.5; r <= 12; r += 1 / K) px(96 + Math.cos(a) * r, 27 + Math.sin(a) * r, 'rgba(255,226,120,.75)', 1 / K, 1 / K); }
+    spr('sun', 0, 89, 20);
+    for (let i = 0; i < 2; i++) spr('cloud', 0, ((t * (1.6 + i) + i * 60) % (W + 40)) - 20, 8 + i * 12 + (i ? 4 : 0));
+    for (let i = 0; i < 3; i++) { const bx = ((t * (5 + i * 2) + i * 40) % (W + 20)) - 10, by = 8 + i * 6 + Math.sin(t * 1.3 + i * 2) * 2, up = Math.floor(t * 4 + i) % 2;
+      px(bx - 1, by + up, '#34415f'); px(bx, by + 1 - up, '#34415f'); px(bx + 1, by + up, '#34415f'); }
+  }
+  if (star) { const a = R - star.t0; cx.globalAlpha = Math.min(1, a * 8, (1 - a) * 2); spr('star', Math.floor(a * 12) % 4, star.x + a * 60 - SP.star.dw * .875, star.y + a * 30 - SP.star.dh * .75); cx.globalAlpha = 1; }
+  const dopen = door.until > R, flick = night ? Math.floor(t / .6) % 2 : 0;
+  spr('house', (dopen ? 1 : 0) + 2 * flick, HX, HY);
+  for (let i = 0; i < 5; i++) { const a = (t * .35 + i / 5) % 1; px(HX + 27.5 + a * 3 + Math.sin(a * 6 + i) * 1.5, HY + 1 - a * 12, 'rgba(150,160,195,' + (.5 * (1 - a)) + ')', a > .4 ? 2 : 1, a > .4 ? 2 : 1); }
+  if (dopen) for (let y = 0; y < 6; y++) px(18 + y * .3, 44 + y, 'rgba(255,211,107,' + (.2 - y * .03) + ')', 10 - y * .6 + 1, 1);
+  const items = FL.map(f => ({ y: f.y, f })); items.push({ y: ch.y, c: 1 }); items.push({ y: TY + 16, k: 1 }); items.sort((a, b) => a.y - b.y);
+  items.forEach(it => {
+    if (it.k) {
+      if (cake.lit && night) for (let r = 24, al = .05; r >= 10; r -= 4, al += .04) { cx.fillStyle = 'rgba(255,205,110,' + al + ')'; cx.beginPath(); cx.arc(TX, TY - 6, r, 0, 7); cx.fill(); }
+      px(TX - 15, TY + 16, 'rgba(0,0,0,.3)', 30, 1);
+      spr('table', 0, TX - SP.table.dw / 2, TY);
+      spr('cake', cake.lit ? Math.floor(t * 6) % 2 : 2 + Math.floor((R - cake.t1) * 3) % 2, TX - SP.cake.dw / 2, TY - 10);
+    } else if (it.f) {
+      const f = it.f, near = Math.abs(ch.x - f.x) < 9 && Math.abs(ch.y - f.y) < 7 || f.bloom > R, step = near ? .22 : .5;
+      spr((f.big ? 'sunL' : 'sunS') + (near ? 'b' : ''), [0, 1, 2, 1][Math.floor(t / step + f.ph) % 4], f.x - SP[f.big ? 'sunL' : 'sunS'].dw / 2, f.y - SP[f.big ? 'sunL' : 'sunS'].dh + 1);
+    } else {
+      px(ch.x - 5, ch.y, 'rgba(0,0,0,.4)', 10, 2 / K); px(ch.x - 4, ch.y + 1, 'rgba(0,0,0,.25)', 8, 2 / K);
+      const blink = (t % 3.2) < .15, wf = ch.moving ? 1 + Math.floor(ch.walkT * 6) % 2 : (blink ? 3 : 0);
+      spr('girl', wf, ch.x - SP.girl.dw / 2, ch.y + 1 - SP.girl.dh - (ch.moving && Math.floor(ch.walkT * 6) % 2 ? .5 : 0), ch.face < 0);
+    }
+  });
+  if (night) for (let i = 0; i < 9; i++) {
+    const s = Math.sin(t * 1.4 + i * 2); if (s < .1) continue;
+    const x = 6 + hash(i + 40) * 100 + Math.sin(t * .6 + i * 3) * 4, y = 40 + hash(i + 70) * 21 + Math.cos(t * .5 + i * 2) * 2;
+    px(x - 1, y - 1, 'rgba(243,238,138,.16)', 3, 3); px(x, y, '#f3ee8a');
+  } else {
+    for (let i = 0; i < 1; i++) {   /* butterflies: just one */
+      const x = 12 + hash(i + 40) * 92 + Math.sin(t * .7 + i * 3) * 8, y = 38 + hash(i + 70) * 20 + Math.cos(t * .9 + i * 2) * 3, c = i % 2 ? '#ff9fc0' : '#ffffff';
+      if (Math.floor(t * 6 + i) % 2) px(x - 1, y, c, 3, 1); else { px(x - 1, y - 1, c); px(x + 1, y - 1, c); px(x, y, '#5a4636'); }
+    }
+  }
+  FL.forEach(f => {   /* purple hearts mark the sunflowers that sing */
+    if (f.snd === undefined || !SOUNDS[f.snd]) return;
+    const on = cur && cur.i === f.snd && R < cur.end, sc = on ? 1.5 + Math.sin(t * 14) * .15 : 1, w = 4.5 * sc, h = 4 * sc, bob = Math.sin(t * 2.2 + f.snd) * .8;
+    cx.drawImage(HC[f.snd], Math.round((f.x - w / 2) * K) / K, Math.round((f.y - SP.sunL.dh - 4 - h + bob) * K) / K, w, h);
+  });
+  parts.forEach(p => px(p.x, p.y, p.c, 2, 1));
+  if (!bub.hidden) {
+    if (R > bubUntil) bub.hidden = true;
+    else { const w = W * u, hb = bub.offsetWidth / 2 + 4, left = clamp(ch.x * u, hb, w - hb); bub.style.left = left + 'px'; bub.style.top = (ch.y - 27) * u + 'px'; bub.style.fontSize = Math.max(16, Math.min(34, Math.round(2.4 * u))) + 'px'; }
+  }
+}
+
+function fit() {
+  const avail = document.querySelector('main').clientWidth - 28 - 8, byH = (innerHeight - 250) / (H * K);
+  const target = Math.max(.9, Math.min(avail / (W * K), byH, 6)), si = Math.floor(target);
+  const s = (si >= 1 && si / target >= .86) ? si : target;   /* whole pixels when close, otherwise fractional to fill the width */
+  u = s * K; cv.style.width = W * K * s + 'px'; cv.style.height = H * K * s + 'px'; dirty = true;
+}
+let last = 0;
+function start() {
+  bgs.day = buildBG(false); bgs.night = buildBG(true); setNight(START_NIGHT); fit();
+  addEventListener('resize', fit); new ResizeObserver(fit).observe(document.querySelector('main'));
+  last = performance.now();
+  setInterval(() => {
+    const now = performance.now(), dt = Math.min(.06, (now - last) / 1000); last = now;
+    R += dt; if (!reduce) T += dt;
+    update(dt);
+    if (!reduce || dirty || ch.moving || parts.length || star || !bub.hidden || (cur && R < cur.end)) { render(); dirty = false; }
+  }, 33);
+}
+</script>
+</body>
+</html>
